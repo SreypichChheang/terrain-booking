@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: laravel-mysql-deployment
+  labels:
+    app: laravel-mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: laravel-mysql
+  template:
+    metadata:
+      labels:
+        app: laravel-mysql
+    spec:
+      containers:
+      - name: webserver
+        image: php:8.2-fpm
+        ports:
+          - containerPort: 8080
+          - containerPort: 22
+        env:
+          - name: DB_HOST
+            value: "127.0.0.1"
+          - name: DB_DATABASE
+            value: "sreypich-db"  # Replace with yourname-db
+          - name: DB_USERNAME
+            value: "root"
+          - name: DB_PASSWORD
+            value: "Hello@123"
+        volumeMounts:
+          - name: laravel-code
+            mountPath: /var/www/html
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            apt-get update && \
+            apt-get install -y nginx git openssh-server libzip-dev zip unzip && \
+            docker-php-ext-install zip pdo_mysql && \
+            mkdir -p /run/nginx && \
+            if [ ! -d /var/www/html/laravel-project ]; then \
+              git clone https://github.com/SreypichChheang/terrain-booking.git /var/www/html/laravel-project; \
+              cd /var/www/html/laravel-project && composer install; \
+            fi && \
+            echo 'server { \
+              listen 8080; \
+              root /var/www/html/laravel-project/public; \
+              index index.php index.html index.htm; \
+              location / { try_files $uri $uri/ /index.php?$query_string; } \
+              location ~ \.php$ { \
+                fastcgi_pass 127.0.0.1:9000; \
+                fastcgi_index index.php; \
+                fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; \
+                include fastcgi_params; \
+              } \
+            }' > /etc/nginx/sites-available/default && \
+            chown -R www-data:www-data /var/www/html/laravel-project/storage && \
+            chown -R www-data:www-data /var/www/html/laravel-project/bootstrap/cache && \
+            service ssh start && \
+            php-fpm -D && \
+            nginx -g "daemon off;"
+
+      - name: mysql
+        image: mysql:8.0
+        env:
+          - name: MYSQL_ROOT_PASSWORD
+            value: "Hello@123"
+          - name: MYSQL_DATABASE
+            value: "terrain_booking"  # Replace with yourname-db
+        ports:
+          - containerPort: 3306
+        volumeMounts:
+          - name: mysql-data
+            mountPath: /var/lib/mysql
+
+      volumes:
+        - name: laravel-code
+          emptyDir: {}
+        - name: mysql-data
+          emptyDir: {}
